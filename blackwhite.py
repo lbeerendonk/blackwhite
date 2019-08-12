@@ -14,19 +14,19 @@ prefs.general['audioLib'] = ['sounddevice']
 prefs.general['audioDriver'] = ['portaudio']
 #print(prefs)
 from psychopy import sound
-
+import pygame
 import os, sys, datetime
 import subprocess
-import pickle, datetime, time
+import datetime, time
+import pickle as pkl
+import pandas as pd
 import json
 from math import *
 from IPython import embed as shell
 import shutil
-from psychopy import logging, visual, clock, sound, event, core, monitors
+from psychopy import logging, visual, clock, sound, event, data, core, monitors
 from psychopy import parallel
 from psychopy.sound import Sound
-
-#import wave
 
 logging.console.setLevel(logging.CRITICAL)
 
@@ -55,11 +55,12 @@ fullscr = False
 tracker_on = False
 use_parallel = False
 
-total_trials = 2
-miniblocks = 1
+total_trials = 40
+miniblocks = 2
 NR_TRIALS = total_trials/miniblocks
-block_length = 2
+block_length = 10
 
+nr_staircase_trials = 10
 # trials_per_block = 85
 # conditions = 4
 # trials_per_condition = 255
@@ -74,11 +75,6 @@ if use_parallel:
     from ctypes import windll
     portaddress = 0xA0D0
     port = windll.inpout32
-
-detdisc = ['detect','detect','discrim','discrim']
-blackwhite = ['black','black','white','white']
-np.random.shuffle(detdisc)
-np.random.shuffle(blackwhite)
     
 class DetectTrial(Trial):
     def __init__(self, task, parameters = {}, phase_durations=[], session=None, screen=None, tracker=None, ID=0): # self, parameters = {}, phase_durations=[], session=None, screen=None, tracker=None, ID=0,
@@ -131,107 +127,151 @@ class DetectTrial(Trial):
             )
 
     def create_stimuli(self):
-        self.target1 = sound.Sound('A', octave=3.5, sampleRate=44100, secs=0.5) 
-        self.target2 = sound.Sound('A', octave=3.6, sampleRate=44100, secs=0.5)
+        self.target1 = sound.backend_sounddevice.SoundDeviceSound('target1.wav', stereo=True,volume=1)
+        self.target2 = sound.backend_sounddevice.SoundDeviceSound('target2.wav', stereo=True,volume=1)
+        self.noise = sound.backend_sounddevice.SoundDeviceSound('TORC_424_02_h501.wav', stereo=True,volume=1.0)
         self.center = ( self.screen.size[0]/2.0, self.screen.size[1]/2.0 )
-        self.noise = sound.Sound('TORC_424_02_h501.wav', secs=0.5)
-        self.noise.setVolume(1)
 
         intro_text = None
 
-        if self.task == 'detect':
-            if self.version == 1:
-                intro_text = """Your task is to detect the target tone embedded in noise.\n\nDo you hear the target tone? And how confident are you?\nPlease indicate your answer using these buttons:\n\n        A                      S                            K                          L\nno and sure     no and unsure      yes and unsure     yes and sure\n\nPress the spacebar to start."""   
-            elif self.version == 2: 
-                intro_text = """Your task is to detect the target tone embedded in noise.\n\nDo you hear the target tone? And how confident are you?\nPlease indicate your answer using these buttons:\n\n        A                        S                            K                        L\nyes and sure     yes and unsure      no and unsure     no and sure\n\nPress the spacebar to start."""
-        elif self.task == 'discrim':
-            if self.version == 1:
-                intro_text = """Your task is to discriminate between two target tones embedded in noise.\n\nDo you hear the high or the low tone? And how confident are you?\nPlease indicate your answer using these buttons:\n\n        A                        S                              K                            L\nlow and sure     low and unsure      high and unsure     high and sure\n\nPress the spacebar to start."""
-            elif self.version == 2:
-                intro_text = """Your task is to discriminate between two target tones embedded in noise.\n\nDo you hear the high or the low tone? And how confident are you?\nPlease indicate your answer using these buttons:\n\n         A                         S                             K                           L\nhigh and sure     high and unsure      low and unsure     low and sure\n\nPress the spacebar to start."""
-        
+        if self.session.background == 'staircase':
+            if self.task == 'detect':
+                part1 = """Your task is to detect the target tone embedded in noise.
+First, the appropriate difficulty level will be estimated. To do so, the difficulty will be increased until you make mistakes. Then the difficulty will be decreased again until you are performing well. This process will go on for a while in order to get a good estimate.
+At some point, you will probably not hear the target anymore. Just continue, the difficulty will be adjusted.\n\n"""
+                if self.version ==1:
+                    part2 = """Press LEFT (green) when the target tone is absent and RIGHT (green) when the target tone is present.
+
+Press the spacebar to continue."""
+                elif self.version==2:
+                    part2 = """Press LEFT (green) when the target tone is present and RIGHT (green) when the target tone is absent.
+
+Press the spacebar to continue."""
+                
+            elif self.task == 'discrim':
+                part1 = """Your task is to discriminate between two target tones embedded in noise.
+First, the appropriate difficulty level will be estimated. To do so, the difficulty will be increased until you make mistakes. Then the difficulty will be decreased again until you are performing well. This process will go on for a while in order to get a good estimate.
+At some point, you will probably not hear the target anymore. Just continue, the difficulty will be adjusted.\n\n""" 
+                if self.version ==1:
+                    part2 = """Press LEFT (green) when you hear the low tone and RIGHT (green) when you hear the high tone.
+
+Press the spacebar to continue."""
+                elif self.version==2:
+                    part2 = """Press LEFT (green) when you hear the high tone and RIGHT (green) when you hear the low tone.
+
+Press the spacebar to continue."""  
+            intro_text = part1 + part2    
+            self.message2 = visual.TextStim(self.screen, font='arial', pos=[0,0],text=part2,color=(-1,-1,-1), wrapWidth=900) 
+
+        elif self.session.background != 'staircase':
+            if self.task == 'detect':
+                if self.version == 1:
+                    intro_text = """Your task is to detect the target tone embedded in noise.
+Do you hear the target tone? And how confident are you?
+Please indicate your answer using these buttons:
+
+        A                      S                            K                          L
+no and sure     no and unsure      yes and unsure     yes and sure
+
+Try to answer when the stimulus is not audible anymore. If you are too fast or too slow (1.5 seconds) the fixation dot will turn red.
+
+Press the spacebar to start."""   
+                elif self.version == 2: 
+                    intro_text = """Your task is to detect the target tone embedded in noise.
+Do you hear the target tone? And how confident are you?
+Please indicate your answer using these buttons:
+
+        A                        S                            K                        L
+yes and sure     yes and unsure      no and unsure     no and sure
+
+Try to answer when the stimulus is not audible anymore. If you are too fast or too slow (1.5 seconds) the fixation dot will turn red.
+
+Press the spacebar to start."""
+            elif self.task == 'discrim':
+                if self.version == 1:
+                    intro_text = """Your task is to discriminate between two target tones embedded in noise.
+Do you hear the high or the low tone? And how confident are you?
+Please indicate your answer using these buttons:
+
+        A                        S                              K                            L
+low and sure     low and unsure      high and unsure     high and sure
+
+Try to answer when the stimulus is not audible anymore. If you are too fast or too slow (1.5 seconds) the fixation dot will turn red.
+
+Press the spacebar to start."""
+                elif self.version == 2:
+                    intro_text = """Your task is to discriminate between two target tones embedded in noise.
+Do you hear the high or the low tone? And how confident are you?
+Please indicate your answer using these buttons:
+
+         A                         S                             K                           L
+high and sure     high and unsure      low and unsure     low and sure
+
+Try to answer when the stimulus is not audible anymore. If you are too fast or too slow (1.5 seconds) the fixation dot will turn red.
+
+Press the spacebar to start."""
+
+         
         if self.ID % self.session.block_length == 0 and self.ID > 0:
-            perf = np.array(self.session.corrects)[-self.session.block_length:][np.array(self.session.corrects)[-self.session.block_length:] >= 0].sum() / float(self.session.block_length) * 100.0
+            #perf = np.array(self.session.corrects)[-self.session.block_length:][np.array(self.session.corrects)[-self.session.block_length:] >= 0].sum() / float(self.session.block_length) * 100.0
             early = len(np.array(self.session.corrects)[-self.session.block_length:][np.array(self.session.corrects)[-self.session.block_length:] == -2]) / float(self.session.block_length) * 100.0
             misses = len(np.array(self.session.corrects)[-self.session.block_length:][np.array(self.session.corrects)[-self.session.block_length:] == -1]) / float(self.session.block_length) * 100.0
-
-            # Adjust signal volume according to performance. If performance deviates 5-10% of target performance, adjust volume 5% of original volume (fixed step sizes). If performance deviates more than 10%, adjust 10%.
-            if 65 < perf <= 70:
-                self.session.signal_volume = self.session.signal_volume+self.session.step_size
-            elif perf <= 65:
-                self.session.signal_volume = self.session.signal_volume+2*self.session.step_size
-            elif 80 <= perf < 85:
-                self.session.signal_volume = self.session.signal_volume-self.session.step_size
-            elif perf >= 85:
-                self.session.signal_volume = self.session.signal_volume-2*self.session.step_size
-            if 70 <= perf <= 80:
-                part1 = """\n%i%% correct! The volume will stay te same.""" % (perf)
-            else: 
-                part1 = """\n%i%% correct! The volume will be adjusted.""" % (perf)
-
             conf = np.array(self.session.confidence)[-self.session.block_length:][np.array(self.session.confidence)[-self.session.block_length:] >= 0].sum() / float(self.session.block_length) * 100.0
-            if conf<40 or conf>60:
-                feedback_text = part1 + """\n\nYou were more confident in %i%% of the trials. Please try to keep this to 50%%.\n\nYou responded too quickly to %i%% of trials and you missed %i%% of trials. Please try to keep this to a minimum.\n\nPress the spacebar to continue.""" % (conf,early,misses)     
-            else:
-                feedback_text = part1 + """\n\nYou were more confident in %i%% of the trials.\n\nYou responded too quickly to %i%% of trials and you missed %i%% of trials. Please try to keep this to a minimum.\n\nPress the spacebar to continue.""" % (conf,early,misses)    
 
-            print(str(perf) + ' percent correct') 
+            if conf<40 or conf>60:
+                feedback_text = """You were more confident in %i%% of the trials. Please try to keep this to 50%%.\n\nYou responded too quickly to %i%% of trials and you missed %i%% of trials. Please try to keep this to a minimum.\n\nPress the spacebar to continue.""" % (conf,early,misses)     
+            else:
+                feedback_text = """You were more confident in %i%% of the trials.\n\nYou responded too quickly to %i%% of trials and you missed %i%% of trials. Please try to keep this to a minimum.\n\nPress the spacebar to continue.""" % (conf,early,misses)    
+
             print(str(conf) + ' percent high conf')
             print(str(early) + ' percent fast response trials')
             print(str(misses) + ' percent missed trials')
         else: 
             feedback_text = None
-        
+
+        if self.session.background == 'staircase':
+            textcolor = (-1,-1,-1)
+            self.firstscreen = visual.TextStim(self.screen, font='arial', pos=[0,0], text='Thank you for participating in this experiment.\n\nToday you will be performing auditory detection and discrimination tasks againts bright and dark backgrounds. Throughout the experiment, you will be listening to tones embedded in noise. You will now get to hear the target tone(s) and the noise.\n\nPress the spacebar to continue.',color=textcolor,wrapWidth=900)
+        else:
+            textcolor = (0,0,0)
+            if self.task == 'detect' and self.ID==0:
+                self.firstscreen = visual.TextStim(self.screen, font='arial', pos=[0,0], text='You will now perform the DETECTION task.\nYou will now get to hear the target tone embedded in noise.\n\nPress the spacebar to continue.',color=textcolor,wrapWidth=900)
+            elif self.task == 'detect':
+                self.firstscreen = visual.TextStim(self.screen,font='arial', pos=[0,0], text='You will now get to hear the target tone again so you know what to look for.\n\nPress the spacebar to continue.',color = (0,0,0),wrapWidth=900) 
+            elif self.task == 'discrim' and self.ID==0:
+                self.firstscreen = visual.TextStim(self.screen, font='arial', pos=[0,0], text='You will now perform the DISCRIMINATION task.\nYou will now get to hear the target tone embedded in noise.\n\nPress the spacebar to continue.',color=textcolor,wrapWidth=900)
+            elif self.task == 'discrim':
+                self.firstscreen = visual.TextStim(self.screen, font='arial', pos=[0,0], text='You will now get to hear the target tones again so you know what to look for.\n\nPress the spacebar to continue.',color = (0,0,0),wrapWidth=900) 
+
         if self.ID > 0:
-            self.feedback = visual.TextStim(self.screen, font='avenir', pos=[0,0],text=feedback_text, color = (.5,.5,.5),wrapWidth=50)                           
-        self.message = visual.TextStim(self.screen, font='avenir', pos=[0,0],text=intro_text, color = (.5,.5,.5),wrapWidth=50)
+            self.feedback = visual.TextStim(self.screen, font='arial', pos=[0,0],text=feedback_text, color =textcolor,wrapWidth=900)                           
+        self.message = visual.TextStim(self.screen, font='arial', pos=[0,0],text=intro_text,color=textcolor,wrapWidth=900)
 
-        if task == 'detect' and self.ID==0:
-            self.message1 = visual.TextStim(self.screen, font='avenir', pos=[0,0], text='Your task is to detect the target tone embedded in noise.\n\nYou can indicate your answer using the keyboard, the precise buttons will follow (same as before).\nDo not press any buttons before the stimulus is over.\nTry to perform as well as possible and keep your eyes fixated on the fixation dot.\nIf your performance increases/decreases too much, the difficulty of the task will be adjusted.\nYou will now get to hear the target tone so you know what to look for.\n\nPress the spacebar to continue.',color = (-1.0, -1.0, -1.0),wrapWidth=50) 
-        elif task == 'detect':
-            self.message1 = visual.TextStim(self.screen,font='avenir', pos=[0,0], text='You will now get to hear the target tone again so you know what to look for.\n\nPress the spacebar to continue.',color = (-1.0, -1.0, -1.0),wrapWidth=50) 
-        elif task == 'discrim' and self.ID==0:
-            self.message1 = visual.TextStim(self.screen, font='avenir', pos=[0,0], text='Your task is to discriminate between two tones embedded in noise.\n\nYou can indicate your answer using the keyboard, the precise buttons will follow (same as before).\nDo not press any buttons before the stimulus is over.\nTry to perform as well as possible and keep your eyes fixated on the fixation dot.\nIf your performance increases/decreases too much, the difficulty of the task will be adjusted.\nYou will now get to hear the target tones so you know what to look for.\n\nPress the spacebar to continue.',color = (-1.0, -1.0, -1.0),wrapWidth=50) 
-        elif task == 'discrim':
-            self.message1 = visual.TextStim(self.screen, font='avenir', pos=[0,0], text='You will now get to hear the target tones again so you know what to look for.\n\nPress the spacebar to continue.',color = (-1.0, -1.0, -1.0),wrapWidth=50) 
+        self.target_tone_first = visual.TextStim(self.screen, pos=[0,+100], text='This is the target tone.', color=textcolor, font = 'arial')
+        self.high_tone_first = visual.TextStim(self.screen,pos=[0,+100], text='This is the high tone.', color=textcolor, font = 'arial')
+        self.low_tone_first = visual.TextStim(self.screen,pos=[0,+100], text='This is the low tone.', color=textcolor, font = 'arial')
+        self.noise_tone_first = visual.TextStim(self.screen,pos=[0,+100], text='This is the noise sound.', color=textcolor, font = 'arial')
 
-
-        self.target_tone = visual.TextStim(self.screen, font='avenir', pos=[0,+3], text='This is the target tone with noise.',color = (.5,.5,.5))
-        self.high_tone = visual.TextStim(self.screen, font='avenir', pos=[0,+3], text='This is the high tone with noise.',color = (.5,.5,.5))
-        self.low_tone = visual.TextStim(self.screen, font='avenir', pos=[0,+3], text='This is the low tone with noise.',color = (.5,.5,.5))
-
-        #for the improved fixation dot
-        self.d1 = 0.7 #diameter outer circle. larger option: 1.5, 0.15, 7
-        self.d2 = 0.05 #diameter inner circle
+        self.target_tone = visual.TextStim(self.screen, font='arial', pos=[0,+100], text='This is the target tone with noise.',color = textcolor)
+        self.high_tone = visual.TextStim(self.screen, font='arial', pos=[0,+100], text='This is the high tone with noise.',color = textcolor)
+        self.low_tone = visual.TextStim(self.screen, font='arial', pos=[0,+100], text='This is the low tone with noise.',color = textcolor)
+ 
+        self.d1 = 30 #diameter outer circle. larger option: 1.5, 0.15, 7 (0.7, 0.05, 4)
+        self.d2 = 2 #diameter inner circle
         self.w1 = 4 #linewidth
-        self.backgroundColor = (.5,.5,.5) #Set according to the backgroundcolor of the experiment
-        self.fixation_color = (.5,.5,.5)
+        self.backgroundColor = (0,0,0) #Set according to the backgroundcolor of the experiment
+        
+        if self.session.background != 'staircase':
+            self.fixation_color = (0,0,0)
+        else:
+            self.fixation_color = (-1,-1,-1)
 
-        self.fixation1 = visual.Circle(self.screen, lineColor=self.backgroundColor, lineColorSpace = 'rgb', fillColor = self.fixation_color, fillColorSpace='rgb', size=self.d1, units='deg')
+        self.fixation1 = visual.Circle(self.screen, lineColor=self.backgroundColor, lineColorSpace = 'rgb', fillColor = self.fixation_color, fillColorSpace='rgb', size=self.d1) #units='deg'
         self.line1 = visual.Line(self.screen,lineWidth=self.w1,start=(self.d1/2,0),end=(-self.d1/2,0),lineColor=self.backgroundColor,lineColorSpace='rgb')
         self.line2 = visual.Line(self.screen,lineWidth=self.w1,start=(0,self.d1/2),end=(0,-self.d1/2),lineColor=self.backgroundColor,lineColorSpace='rgb')
         self.fixation2 = visual.Circle(self.screen, lineColor=self.fixation_color, lineColorSpace = 'rgb', fillColor =self.fixation_color, fillColorSpace='rgb', size=self.d2)
 
-    # def draw_fixation_white_background(self):
-    #   self.line1.lineColor = 'white'
-    #   self.line2.lineColor = 'white'
-    #   self.fixation1.draw()
-    #     self.line1.draw()
-    #     self.line2.draw()
-    #     self.fixation2.draw()
-
-    # def draw_fixation_black_background(self):
-    #   self.line1.lineColor = 'black'
-    #   self.line2.lineColor = 'black'
-    #   self.fixation1.draw()
-    #     self.line1.draw()
-    #     self.line2.draw()
-    #     self.fixation2.draw()
-
     def draw_fixation(self): #For the circle + cross fixation (see Thaler, Shutz, Goodale & Gegenfurtner (2013))
-        self.fixation1.fillColor = 'grey'
-        self.fixation2.lineColor = 'grey'
-        self.fixation2.fillColor = 'grey'
         self.fixation1.draw()
         self.line1.draw()
         self.line2.draw()
@@ -246,10 +286,54 @@ class DetectTrial(Trial):
         self.line2.draw()
         self.fixation2.draw()
 
-    def example_tones(self):
-        self.message1.draw()
+    def example_tones(self): 
+        self.firstscreen.draw()
         self.screen.flip()
         event.waitKeys('spacebar')
+
+        if self.session.background == 'staircase':
+            # Play separate tones and noise (only before run 0)
+            if self.task == 'detect':
+                self.target_tone_first.draw()
+            elif self.task == 'discrim':
+                self.low_tone_first.draw()
+            self.draw_fixation()
+            self.screen.flip()
+
+            for i in range(0,3):
+                self.target1 = sound.backend_sounddevice.SoundDeviceSound('target1.wav',stereo=True,volume=1.0)
+                self.target1.setVolume(0.5)
+                self.target1.play()
+                core.wait(0.5)
+                core.wait(1)
+
+            core.wait(1)
+        
+            if self.task == 'discrim':
+                self.high_tone_first.draw()
+                self.draw_fixation()
+                self.screen.flip()
+                for i in range(0,3):
+                    self.target2 = sound.backend_sounddevice.SoundDeviceSound('target2.wav', stereo=True,volume=1.0)
+                    self.target2.setVolume(0.5)
+                    self.target2.play()
+                    core.wait(0.5)
+                    core.wait(1)
+
+            core.wait(1)
+
+            self.noise_tone_first.draw()
+            self.draw_fixation()
+            self.screen.flip()
+            for i in range(0,3):
+                self.noise.play()
+                core.wait(0.5)
+                core.wait(1)
+
+            core.wait(1)
+            self.target_tone.setColor = ([-1,-1,-1])
+            self.high_tone.setColor = ([-1,-1,-1])
+            self.low_tone.setColor = ([-1,-1,-1])
 
         # Example tones so participants are reminded of the template.
         if self.task == 'detect':
@@ -259,15 +343,12 @@ class DetectTrial(Trial):
         self.draw_fixation()
         self.screen.flip()
 
-        self.target1.setVolume(0.2)
-        self.target2.setVolume(0.2)
-
         for i in range(0,3):
+            self.target1 = sound.backend_sounddevice.SoundDeviceSound('target1.wav', stereo=True,volume=1)
+            self.target1.setVolume(0.2)
             self.noise.play()
             self.target1.play()
             core.wait(0.5)
-            self.noise.stop()
-            self.target1.stop()
             core.wait(1)
 
         core.wait(1)
@@ -277,16 +358,16 @@ class DetectTrial(Trial):
             self.draw_fixation()
             self.screen.flip()
             for i in range(0,3):
+                self.target2 = sound.backend_sounddevice.SoundDeviceSound('target2.wav', stereo=True,volume=1)
+                self.target2.setVolume(0.2)
                 self.noise.play()
                 self.target2.play()
                 core.wait(0.5)
-                self.noise.stop()
-                self.target2.stop()
                 core.wait(1)
 
         self.draw_fixation()
         self.screen.flip()
-   
+
         self.message.draw()
         self.screen.flip()
     #Not so neat, but otherwise it gets stuck.
@@ -295,52 +376,51 @@ class DetectTrial(Trial):
                 self.phase_forward()
 
     def draw(self):
-        #draw additional stimuli:
         if self.phase == 0: # 
+            if self.session.background != 'staircase':
+                self.line1.lineColor = self.session.background
+                self.line2.lineColor = self.session.background
+                self.fixation1.lineColor = self.session.background
             if self.ID % self.session.block_length == 0:
                 if self.ID > 0:
                     self.feedback.draw()
                     self.screen.flip()
                     event.waitKeys('spacebar')
-                self.line1.lineColor = background
-                self.line2.lineColor = background
-                self.fixation1.lineColor = background
                 self.example_tones()
             else:
                 self.draw_fixation()
 
         if self.phase == 1: # Baseline
+            if self.session.background != 'staircase':
+                self.line1.lineColor = self.session.background
+                self.line2.lineColor = self.session.background
+                self.fixation1.lineColor = self.session.background
             self.draw_fixation()
-            self.target1.setVolume(self.session.signal_volume)
-            self.target2.setVolume(self.session.signal_volume)
-        
+
         if self.phase ==2:  # Stimulus presentation
+            self.target1 = sound.backend_sounddevice.SoundDeviceSound('target1.wav', stereo=True,volume=1)
+            self.target2 = sound.backend_sounddevice.SoundDeviceSound('target2.wav', stereo=True,volume=1)
+            self.target1.setVolume(float(self.session.kb.dv))
+            self.target2.setVolume(float(self.session.kb.dv)) 
+            self.parameters['signal_volume']=float(self.session.kb.dv)
             self.draw_fixation()
             if not self.noise_played:
-                try:
-                    self.noise.play(loops=None)
-                except:
-                    self.noise.play(loops=None)
+                self.noise.play(loops=None)
                 self.noise_played = True
+
             #to turn task into discrimination       
-            if task == 'detect' and self.parameters['signal_present'] == 1:
+            if self.task == 'detect' and self.parameters['signal_present'] == 1:
                 if not self.signal_played:
                     self.target1.play()
                     self.signal_played = True
-            elif task == 'discrim':
+            elif self.task == 'discrim':
                 if self.parameters['disc_stim'] == 1:
                     if not self.signal_played:
-                        try:
-                            self.target1.play()
-                        except:
-                            self.target1.play()
+                        self.target1.play()
                         self.signal_played = True  
                 elif self.parameters['disc_stim'] == 2:
                     if not self.signal_played:
-                        try:
-                            self.target2.play()
-                        except:
-                            self.target2.play()
+                        self.target2.play()
                         self.signal_played = True
                         
             if self.too_early: #turn red if subjects press during phase 2
@@ -351,11 +431,13 @@ class DetectTrial(Trial):
                 self.draw_red_fixation()
             else:
                 self.draw_fixation() 
-            self.noise.stop()
-            self.target1.stop()
-            self.target2.stop()
 
         elif self.phase == 4: # ITI
+            if self.parameters['correct'] == -1:
+                self.draw_red_fixation()
+                core.wait(.5)
+                self.draw_fixation()
+
             self.draw_fixation()
 
         super(DetectTrial, self).draw()
@@ -383,59 +465,66 @@ class DetectTrial(Trial):
                     self.parameters['answer'] = -2
                     self.parameters['correct'] = -2
 
-                if ev in ['a','s','k','l'] and (self.phase == 3 and not self.too_early):
-                    self.events.append([1,clock.getTime()-self.start_time])
-                    self.parameters['RT'] = clock.getTime() - self.stim_time
-                    #confidence is always the same
-                    if ev in ['a','l'] and self.phase == 3:
-                        self.parameters['confidence'] = 1
-                    elif ev in ['s','k'] and self.phase == 3:
-                        self.parameters['confidence'] = 0
+                if ev in ['a','s','k','l'] and self.phase == 3: 
 
-                    if task == 'discrim':
-                        if self.version == 1:
-                            if ev in ['a','s']:
-                                self.parameters['answer'] = 1
-                            elif ev in ['k','l']:
-                                self.parameters['answer'] = 2
-                        elif self.version == 2:
-                            if ev in ['a','s']:
-                                self.parameters['answer'] = 2
-                            elif ev in ['k','l']:
-                                self.parameters['answer'] = 1
-                        if self.parameters['answer'] == self.parameters['disc_stim']:
-                           self.parameters['correct'] = 1
-                        else:
-                           self.parameters['correct'] = 0
-                        # if self.session.use_parallel:
-                        #     port.Out32(portaddress,self.session.p_choice_left_sure)
-                        #     core.wait(self.session.p_width)
-                        #     port.Out32(portaddress,0)
-                        self.phase_forward()
+                    if self.too_early and self.session.background == 'staircase': #reset too_early, else the staircase won't proceed at all.
+                        self.too_early = False 
+                    if not self.too_early: 
+                        self.events.append([1,clock.getTime()-self.start_time])
+                        self.parameters['RT'] = clock.getTime() - self.stim_time
+                        #confidence is always the same
+                        if ev in ['a','l']:
+                            self.parameters['confidence'] = 1
+                        elif ev in ['s','k']:
+                            self.parameters['confidence'] = 0
 
+                        if self.task == 'discrim':
+                            if self.version == 1:
+                                if ev in ['a','s']:
+                                    self.parameters['answer'] = 1
+                                elif ev in ['k','l']:
+                                    self.parameters['answer'] = 2
+                            elif self.version == 2:
+                                if ev in ['a','s']:
+                                    self.parameters['answer'] = 2
+                                elif ev in ['k','l']:
+                                    self.parameters['answer'] = 1
+                            if self.parameters['answer'] == self.parameters['disc_stim']:
+                               self.parameters['correct'] = 1
+                            else:
+                               self.parameters['correct'] = 0
+                            print('Correct: ', self.parameters['correct'])
 
-                    elif task == 'detect': 
-                        if self.version == 1:    
-                            if ev in ['a','s']:
-                                self.parameters['answer'] = 0
-                            elif ev in ['k','l']:
-                                self.parameters['answer'] = 1
-                        elif self.version == 2:
-                            if ev in ['a','s']:
-                                self.parameters['answer'] = 1
-                            elif ev in ['k','l']:
-                                self.parameters['answer'] = 0
-                        if self.parameters['answer'] == self.parameters['signal_present']:
-                           self.parameters['correct'] = 1
-                        else:
-                           self.parameters['correct'] = 0
-                        # if self.session.use_parallel:
-                        #     port.Out32(portaddress,self.session.p_choice_left_sure)
-                        #     core.wait(self.session.p_width)
-                        #     port.Out32(portaddress,0)
-                        self.phase_forward()
+                            # Update the volume according to Kaernbach. If not answered or answered too early - don't update the volume. 
+                            if self.parameters['correct'] > -1:
+                                self.session.kb.trial(self.parameters['correct'])
+
+                            self.phase_forward()
+
+                        elif self.task == 'detect': 
+                            if self.version == 1:    
+                                if ev in ['a','s']:
+                                    self.parameters['answer'] = 0
+                                elif ev in ['k','l']:
+                                    self.parameters['answer'] = 1
+                            elif self.version == 2:
+                                if ev in ['a','s']:
+                                    self.parameters['answer'] = 1
+                                elif ev in ['k','l']:
+                                    self.parameters['answer'] = 0
+                            if self.parameters['answer'] == self.parameters['signal_present']:
+                               self.parameters['correct'] = 1
+                            else:
+                               self.parameters['correct'] = 0
+                            print('Correct: ', self.parameters['correct'])
+
+                            # Update the volume according to Kaernbach. If not answered or answered too early - don't update the volume. 
+                            if self.parameters['correct'] > -1:
+                                self.session.kb.trial(self.parameters['correct'])
+
+                            self.phase_forward()
                      
-            super(DetectTrial, self).key_event( event )
+            super(DetectTrial, self).key_event(event)
         
     def run(self):
 
@@ -447,19 +536,11 @@ class DetectTrial(Trial):
 
         trigger = None
         restart = 0 
+        #for self.thisVolume in self.staircase:
+
         while not self.stopped:
+        #for self.thisVolume in self.staircase: 
             self.run_time = clock.getTime() - self.start_time
-            
-            # if tracker_on:
-            #   # THIS BIT OF CODE IS BASED ON CONTINUOUS GAZE SAMPLING 
-            #   if not self.fix_bounds[1] < self.tracker.sample()[0] < self.fix_bounds[0]:
-            #       self.fixLost = True
-            #       self.parameters['fix_lost'] = 1 
-            #   # elif not self.fix_bounds[1,1] < self.tracker.sample()[1] < self.fix_bounds[0,1]:
-            #       # self.fixLost = True
-            #       # self.parameters['restarted'] = 1  
-            #   else:
-            #       self.fixLost = False
                             
             if self.phase == 0:
                 self.prestimulation_time = clock.getTime()
@@ -470,6 +551,7 @@ class DetectTrial(Trial):
                 
             elif self.phase == 1:  # pre-stim cue; phase is timed
                 self.delay_1_time = clock.getTime()
+
                 if ( self.delay_1_time - self.prestimulation_time ) > self.phase_durations[1]:
                     self.phase_forward()
 
@@ -479,22 +561,23 @@ class DetectTrial(Trial):
                 if ( self.stim_time - self.delay_1_time ) > self.phase_durations[2]: 
                     self.phase_forward()
 
-            elif self.phase == 3:              # Decision interval; phase is timed, but aborted at response
+            elif self.phase == 3:  # Decision interval; phase is timed, but aborted at response
                 self.answer_time = clock.getTime()
                 if self.parameters['answer'] != -1 and self.parameters['answer'] != -2: #end phase when respond
                     self.phase_forward()
-                if ( self.answer_time  - self.stim_time) > self.phase_durations[3]: #end phase after some time when no response
-                    self.phase_forward()
+                if self.session.background != 'staircase': #only end phase after some time when no response if this is not the staircase!   
+                    if ( self.answer_time  - self.stim_time) > self.phase_durations[3]: #end phase after some time when no response
+                        self.phase_forward()
 
             elif self.phase == 4: #ITI
 
                 self.ITI_time = clock.getTime()
                 self.too_early = False # Reset for next trial
-
+                
                 if ( self.ITI_time - self.answer_time ) > self.phase_durations[4]:
                     self.stopped = True
                     self.stop()
-                    return
+                    return 
             
             # events and draw:
             self.event()
@@ -503,28 +586,142 @@ class DetectTrial(Trial):
         # we have stopped:
         self.stop()
 
+class Kaernbach1991:
+    def __init__(self, subject_initials, task, dv0=.3, p=0.75, reversals=[2, 400], stepsizes=(.05, .005), initialerrfix=True, avgrevsonly=True, cap=False):
+        """
+        Helper class for tracking an adaptive staircase using the weighted
+        transformed up/down method proposed by Kaernbach (1991). Keywords are
+        used to set parameters at initialisation, but they can be changed at
+        any point during the run if necessary.
+        
+        The main part is the method 'trial' which advances the staircase.
+        Once the staircase is over, all of the data can be accessed, and
+        summarised graphically using the function 'makefig' (requires
+        matplotlib).
+        
+        stepsizes has two values (the first one larger than the second one) because it will use te first stepsize 
+        until reversals[0] is reached (steep decline) and then use stepsizes[1] for all other trials. 
+
+        """
+
+        self.dv = dv0  #starting point contrast (in this case, volume of the tone)
+        self.dvs = [] #for collecting the volume of each trial
+        self.dvs4avg = [] #the average volume is only calculated from trials of phase 1
+        self.p = p #percentage correct to converge on
+        self.factor =  self.p / (1 - self.p) #the ratio between stepsizes up and stepsizes down. in the case of 0.75, this is 3.  
+        self.reversals = reversals
+        self.stepsizes = stepsizes
+        self.initialerrfix = initialerrfix
+        self.avgrevsonly = avgrevsonly
+        self.revn = 0
+        self.phase = 0
+        self.staircaseover = False
+        self.firsttrial = True
+        self.prevcorr = None
+        self.trialn = 0
+        self.cap = cap
+
+    def trial(self, corr):
+        """
+        Advance the staircase by one trial. Takes a Boolean which indicates
+        whether the listener got the trial correct or incorrect.
+        
+        """
+        # do nothing if the staircase is already over
+        if not self.staircaseover: 
+            # record dv if needed
+            if not self.firsttrial:
+                if corr != self.prevcorr:
+                    reversal = True
+                    self.revn += 1
+                else:
+                    reversal = False
+            if self.phase == 1:
+                if self.avgrevsonly:
+                    if reversal:
+                        self.dvs4avg.append(self.dv)
+                else:
+                    self.dvs4avg.append(self.dv)
+            # initial error fix: if the dv goes above the initial value during
+            # the first phase, add more reversals ...
+            if self.initialerrfix:
+                if not corr:
+                    if self.trialn <= self.factor + 1:
+                        self.reversals[0] += 2
+                        self.initialerrfix = False
+
+            if corr:
+                self.dv -= (self.stepsizes[self.phase] / float(self.factor))
+            else:
+                self.dv += self.stepsizes[self.phase]
+            # cap dv
+            if self.cap:
+                if self.dv > self.cap: self.dv = self.cap
+            # update the object
+            if self.revn >= self.reversals[0]:
+                self.phase = 1
+            if self.revn >= np.sum(self.reversals):
+                print('nr of reversals reached')
+                self.staircaseover = True
+            self.firsttrial = False
+            self.prevcorr = corr
+            self.trialn += 1
+            self.dvs.append(self.dv)
+    
+    def getthreshold(self):
+        """
+        Once the staircase is over, get the average of
+        the dvs to calculate the threshold.
+        
+        """
+        self.threshold = np.mean(self.dvs4avg)
+        print('Approximate threshold: ', self.threshold)
+        file = open(self.fileName+'.txt','w')
+        file.write(str(self.threshold))
+        file.close()
+
+    def makefig(self):
+        """
+        View or save the staircase.
+        
+        """
+        self.fig_fileName = os.path.join('data/' + self.task + '_staircase/participant_' + str(self.subject_initials) + '/' + str(self.subject_initials) +'_' + self.task + '_staircase')  
+        x = np.arange(self.trialn) + 1   
+        y = self.dvs
+        plt.plot(x, y)
+        plt.xlim(min(x), max(x))
+        plt.ylim(min(y), max(y))
+        plt.ylabel('Dependent variable')
+        plt.xlabel('Trial')
+        plt.hlines(np.mean(self.dvs4avg), min(x), max(x), 'r')
+        plt.savefig(self.fig_fileName + '.png')    
+        #plt.show()
+
 class DetectSession(EyelinkSession):
     def __init__(self, subject_initials, task, nr_trials, block_length, background, tracker_on=False, use_parallel=False, miniblock=0):
-        
-        # config_file = os.path.join(os.path.abspath(os.getcwd()), 'default_settings.json')
-
-        # with open(config_file) as config_file:
-            # config = json.load(config_file)
-        # self.config = config
-
         super(DetectSession, self).__init__(subject_initials,background)
+        config_file = os.path.join(os.path.abspath(os.getcwd()), 'default_settings.json')
+        self.create_screen(size=[1920, 1080],full_screen = fullscr, background_color = (0,0,0), physical_screen_distance = 80, engine = 'psychopy') #,  ,
+        # screen = monitors.Monitor('testMonitor')
+        # screen.setSizePix([1920,1080])
+        # screen.setWidth(52.1)
+        # screen.setDistance(80)
 
-        screen = monitors.Monitor('testMonitor')
-        screen.setSizePix([1920,1080])
-        screen.setWidth(52.1)
-        screen.setDistance(57)
-        self.screen = visual.Window(size = [1920,1080], units='deg', monitor=screen, fullscr=fullscr, color=background, colorSpace='rgb')
-        self.goodbye = visual.TextStim(self.screen, pos=[0,0], text='This is the end of this block.\n\nThis window will close automatically.',color = (-1.0, -1.0, -1.0),wrapWidth=50)
+        # self.my_monitor = monitors.Monitor(name='mymon')
+        # self.my_monitor.setSizePix((1920, 1080))
+        # self.my_monitor.setWidth(20)
 
         self.block_length = block_length
         self.nr_trials = nr_trials
         self.background = background
         self.task = task 
+        self.subject_initials = initials
+
+        if tracker_on:
+            pygaze.settings.EVENTDETECTION = 'native'
+            self.create_tracker(sensitivity_class = 1, sample_rate=500) #
+            print(self.tracker.connected())
+            self.tracker_setup(sensitivity_class = 1, sample_rate=500)
 
         #Took out self.create_output_filename() because I don't like the filenames with the date and time in it.
         datadir = 'data/' + self.task + '/' + str(self.subject_initials) + '/'
@@ -544,12 +741,6 @@ class DetectSession(EyelinkSession):
                 i += 1  
 
         self.miniblock=miniblock
-        
-        if tracker_on:
-            pygaze.settings.EVENTDETECTION = 'native'
-            self.create_tracker(sensitivity_class = 1, sample_rate=500) #
-            prindex_nint(self.tracker.connected())
-            self.tracker_setup(sensitivity_class = 1, sample_rate=500)
 
         self.use_parallel = use_parallel
         self.p_width = 5/float(1000)
@@ -569,26 +760,32 @@ class DetectSession(EyelinkSession):
         self.p_feedback_sound = 32                  #
         self.p_feedback_visual = 33 
 
+        # create staircase object
+        if self.background == 'staircase': 
+            dv0 = .3
+            reversals = [2,400]
+            stepsizes = (.05,.005)
+        else:
+            try: 
+                dv0 = np.array([np.loadtxt(os.getcwd() + '/data/' + self.task + '_staircase/participant_' + initials + '/' + initials + '_' + self.task + '_threshold.txt')]) 
+            except:
+                raise NameError('no staircase data for participant')  
+            print(dv0)
+            if dv0 < 0.01:
+                print('Staircase value is zero, raising to .03')
+                dv0 = 0.03
+            reversals = [nr_trials+1,nr_trials+1]
+            stepsizes = [.005,.005]
+
+        self.kb = Kaernbach1991(subject_initials=self.subject_initials, task=self.task, dv0=dv0, p=0.75, reversals=reversals, stepsizes=stepsizes, initialerrfix=True, avgrevsonly=True, cap=False)
+
         self.create_yes_no_trials()
 
     def create_yes_no_trials(self):
-        """creates trials for yes/no runs"""
-        try:
-            self.signal_volume= np.array([np.loadtxt(os.getcwd() + '/data/' + self.task + '_staircase/participant_' + initials + '/' + initials + '_' + self.task + '_threshold.txt')]) 
-        except:
-            raise NameError('no staircase data for participant')  
-        print(self.signal_volume)
-        if self.signal_volume < 0.01:
-            shell()
-            self.signal_volume = 0.01
-            print(self.signal_volume)
-
-        self.step_size = self.signal_volume*.05 #Fixed step size (5% of original volume) to adjust volume during the task.
-
         self.signal_present = np.array([0,1])
         self.disc_stim = np.array([1,2])
-        # standard parameters (same for all trials):
-        self.standard_parameters = {'signal_volume': self.signal_volume,
+        # standard parameters (same for all trials), signal volume will be updated every trial:
+        self.standard_parameters = {'signal_volume': None,
                                     'miniblock': self.miniblock,
                                     }
         
@@ -596,27 +793,26 @@ class DetectSession(EyelinkSession):
         self.trial_parameters_and_durs = []    
         self.trial_counter = 0
         self.total_duration = 0
+
         for i in range(self.nr_trials/self.signal_present.shape[0]):
             for j in range(self.signal_present.shape[0]):
 
                 # phase durations, and iti's:
-                phase_durs = [-0.01, 0.6, 0.5, 1.5, np.random.uniform(1,2)]
-
+                phase_durs = [-0.01, 0.6, 0.5, 1.5, np.random.uniform(0,0.4)]
                 params = self.standard_parameters
                 params.update({'signal_present': self.signal_present[j]})
                 params.update({'disc_stim': self.disc_stim[j]})
 
                 self.trial_parameters_and_durs.append([params.copy(), np.array(phase_durs)])
                 self.total_duration += np.array(phase_durs).sum()
-
                 self.trial_counter += 1
 
         self.run_order = np.argsort(np.random.rand(len(self.trial_parameters_and_durs)))
 
         # print params:
         print("number trials: %i." % self.trial_counter)
-        if self.trial_counter != NR_TRIALS:
-            raise ValueError('number of created trials does not match pre-defined number of trials')
+        # if self.trial_counter != NR_TRIALS:
+        #     raise ValueError('number of created trials does not match pre-defined number of trials')
 
         print("total duration: %.2f min." % (self.total_duration / 60.0))
 
@@ -626,14 +822,6 @@ class DetectSession(EyelinkSession):
         self.corrects = []
         self.confidence = []
         self.clock = clock
-
-        #trigger:
-        #--------
-        if self.use_parallel:
-          port.Out32(portaddress,self.p_run_start)
-          core.wait(self.p_width)
-          port.Out32(portaddress,0)         
-          print('trigger!')
         
         if tracker_on:
             self.tracker.status_msg('run started at ' + str(clock.getTime()) + ' trigger ' + str(self.p_run_start) )
@@ -642,8 +830,8 @@ class DetectSession(EyelinkSession):
                 
         # Display black - white - black screens to determine pupil size limits
         self.center = (self.screen.size[0]/2.0, self.screen.size[1]/2.0)
-        self.fixation = GratingStim(self.screen, mask = 'circle',size=4, pos=[0,0], sf=0, color ='grey')
-        self.baseline_instruct = TextStim(self.screen, text = 'please keep your focus on the dot in the middle', pos = (0,50), color = (0,0,0), height=20)
+        self.fixation = GratingStim(self.screen, mask = 'circle',size=4, pos=[0,0], sf=0, color =(0,0,0))
+        self.baseline_instruct = TextStim(self.screen, text = 'please keep your focus on the dot in the middle', pos = (0,50), color = (-1,-1,-1), height=20)
 
         if self.miniblock==0:
             
@@ -683,78 +871,118 @@ class DetectSession(EyelinkSession):
                 if tracker_on:
                     self.tracker.status_msg('pupil baseline 3 ended ' + str(clock.getTime())  )
                 
-            self.screen.color=(0.5, 0.5, 0.5)
+            self.screen.color=(0, 0, 0)
             self.screen.flip()
         
+        if self.background == 'staircase':  #XXX dit moet ergens anders
+            self.screen.color = (0,0,0)
+        else:
+            self.screen.color = self.background
+        self.screen.flip()
+
         self.trial_counter = 0
 
         while self.trial_counter < self.nr_trials:
-            
+            print('Trial: ', self.trial_counter)
             if self.trial_counter == self.nr_trials: 
-                this_trial = DetectTrial(task=task, parameters=self.trial_parameters_and_durs[self.run_order[self.trial_counter]][0], phase_durations=[-0.01, 0.6, 0.5, 2.5, 4 ], session=self, screen=self.screen, tracker=self.tracker, ID=self.trial_counter)
-            else:      
-                this_trial = DetectTrial(task=task, parameters=self.trial_parameters_and_durs[self.run_order[self.trial_counter]][0], phase_durations=self.trial_parameters_and_durs[self.run_order[self.trial_counter]][1], session=self, screen=self.screen, tracker=self.tracker, ID=self.trial_counter)
+                this_trial = DetectTrial(task=self.task, parameters=self.trial_parameters_and_durs[self.run_order[self.trial_counter]][0], phase_durations=[-0.01, 0.6, 0.5, 2.5, 4 ], session=self, screen=self.screen, tracker=self.tracker, ID=self.trial_counter)
+            else:    
+                this_trial = DetectTrial(task=self.task, parameters=self.trial_parameters_and_durs[self.run_order[self.trial_counter]][0], phase_durations=self.trial_parameters_and_durs[self.run_order[self.trial_counter]][1], session=self, screen=self.screen, tracker=self.tracker, ID=self.trial_counter)
             this_trial.run()    
-            print(self.trial_counter)
-            print(self.signal_volume)
             self.corrects.append(this_trial.parameters['correct'])
             self.confidence.append(this_trial.parameters['confidence']) 
 
             if self.stopped == True:
                 break
             self.trial_counter += 1
-
         
         self.stop_time = clock.getTime()
+
+        pygame.mixer.quit()
+        #self.screen.close()
+        parsopf = open(self.output_file + '_outputDict.pkl', 'a')
+        pkl.dump(self.outputDict,parsopf)
+        parsopf.close()
+        # also output parameters as tsv
+        opd = pd.DataFrame.from_records(self.outputDict['parameterArray'])
+        opd.to_csv(path_or_buf=self.output_file + '.tsv', sep='\t', encoding='utf-8')
+
+        if self.background != 'staircase':
+            self.goodbye = visual.TextStim(self.screen, pos=[0,0], text='This is the end of this block.\nThe screen will now turn grey.',color=(0,0,0),wrapWidth=900,font='arial')
+            early = len(np.array(self.corrects)[-self.block_length:][np.array(self.corrects)[-self.block_length:] == -2]) / float(self.block_length) * 100.0
+            misses = len(np.array(self.corrects)[-self.block_length:][np.array(self.corrects)[-self.block_length:] == -1]) / float(self.block_length) * 100.0
+            conf = np.array(self.confidence)[-self.block_length:][np.array(self.confidence)[-self.block_length:] >= 0].sum() / float(self.block_length) * 100.0
+
+            feedback_text = """You were more confident in %i%% of the trials.\n\nYou responded too quickly to %i%% of trials and you missed %i%% of trials. Please try to keep this to a minimum.\n\nPress the spacebar to continue.""" % (conf,early,misses)    
+            feedback_final = """You were more confident in %i%% of the trials.\n\nYou responded too quickly to %i%% of trials and you missed %i%% of trials. Please try to keep this to a minimum.\n\nThis screen will close automatically.""" % (conf,early,misses)
+            print(str(conf) + ' percent high conf')
+            print(str(early) + ' percent fast response trials')
+            print(str(misses) + ' percent missed trials')
+
+            if self.stopped: 
+                self.final_feedback = visual.TextStim(self.screen, font='arial', pos=[0,0],text=feedback_final, color=(0,0,0),wrapWidth=900)
+                self.final_feedback.draw()
+                self.screen.flip()
+                core.wait(8)
+                self.screen.close()
+            else:
+                self.final_feedback = visual.TextStim(self.screen, font='arial', pos=[0,0],text=feedback_text, color=(0,0,0),wrapWidth=900) 
+                self.final_feedback.draw()
+                self.screen.flip()
+                event.waitKeys('spacebar')
+        else: 
+            self.goodbye = visual.TextStim(self.screen, pos=[0,0], text='This is the end of the staircase procedure.',color=(-1,-1,-1),wrapWidth=900,font='arial')
+
         self.goodbye.draw()
         self.screen.flip()
-        core.wait(3)
-
-        print('elapsed time: %.2fs' %(self.stop_time-self.start_time))
-
-        # trigger:
-        # --------
-        # if self.use_parallel:
-        #   port.Out32(portaddress,self.p_run_end)
-        #   core.wait(self.p_width)
-        #   port.Out32(portaddress,0)
-        # ---------
+        core.wait(2)
         if self.tracker_on:
             self.tracker.status_msg('run ended at ' + str(clock.getTime()) + ' trigger ' + str(self.p_run_end) )
-        
+        print('elapsed time: %.2fs' %(self.stop_time-self.start_time))      
+
+        self.breakscreen = visual.TextStim(self.screen, pos=[0,0], text='You can now take a break and take your head of the chinrest.\n\nPress the spacebar when you are finished taking a break.',font='arial',color=(-1,-1,-1),wrapWidth=900)
+
+        self.screen.color = (0,0,0)
+        self.screen.flip()
+        self.breakscreen.draw()
+        self.screen.flip()
+        event.waitKeys('spacebar')
         self.screen.clearBuffer
+ 
+def main(initials,block_length,nr_trials):
 
-        if self.miniblock < 3: 
-            self.screen.flip()
-            event.waitKeys()
-        elif self.miniblock==3:
-            self.close()
+    prestairdet = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='detect', miniblock=1)
+    prestairdet.run()
 
-def main(initials, nr_trials, block_length,miniblock=None, task=None, background=None):
-    #appnope.nope()  # Shut down MAC-OS application app-nap, which shuts down programs after idling for to long
+    prestairdisc = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='discrim', miniblock=1)
+    prestairdisc.run()
 
-    # # create random order of conditions
-    # detdisc = ['detect','detect','discrim','discrim']
-    # blackwhite = ['black','black','white','white']
-    # np.random.shuffle(detdisc)
-    # np.random.shuffle(blackwhite)
-
-    detdisc = ['detect','detect','discrim','discrim']
-    blackwhite = ['black','black','white','white']
-    np.random.shuffle(detdisc)
-    np.random.shuffle(blackwhite)
+    condition = [['black','detect'],
+                 ['black','discrim'],
+                 ['white','detect'],
+                 ['white','discrim']]
+    np.random.shuffle(condition)
 
     for i in range(4):
+        task = condition[i][1]
+        print(task)
+        background=condition[i][0]
+        print(background)
+        miniblock=i
+        print(miniblock)
 
-        ts = DetectSession(subject_initials=initials, nr_trials=NR_TRIALS, block_length = block_length,  background=blackwhite[i], tracker_on=tracker_on, use_parallel=use_parallel, task=detdisc[i], miniblock=i)
+        ts = DetectSession(subject_initials=initials, nr_trials=NR_TRIALS, block_length = block_length,  background=background, tracker_on=tracker_on, use_parallel=use_parallel, task=task, miniblock=miniblock)
         ts.run()
 
-        if not os.path.exists('data/' + task + '/' + initials + '/'):
-            os.makedirs('data/' + task +'/' + initials + '/')
+        if ts.stopped:
+            ts.close()
+            ts.screen.close()
+            break
+
+    if not os.path.exists('data/' + task + '/' + initials + '/'):
+        os.makedirs('data/' + task +'/' + initials + '/')
 
 if __name__ == '__main__':
     # Store info about the experiment session
     initials = raw_input('Participant: ')
-
-
-    main(initials=initials, background=background, block_length = block_length, nr_trials=NR_TRIALS, task=task, miniblock=miniblock)
+    main(initials=initials, block_length = block_length, nr_trials=NR_TRIALS)
