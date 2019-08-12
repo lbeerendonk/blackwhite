@@ -30,8 +30,8 @@ from psychopy.sound import Sound
 
 logging.console.setLevel(logging.CRITICAL)
 
-sys.path.append('/Users/lolabeerendonk/Documents/reps/exptools')
-#sys.path.append('D:\USERS\Stijn\exptools')
+#sys.path.append('/Users/lolabeerendonk/Documents/reps/exptools')
+sys.path.append('D:\USERS\Lola\exptools')
 
 import exptools
 from exptools.core.trial import Trial
@@ -52,7 +52,7 @@ from pygaze import eyetracker
 p = ['FA', 'MISS']
 
 fullscr = False
-tracker_on = False
+tracker_on = True
 use_parallel = False
 
 total_trials = 40
@@ -529,7 +529,7 @@ Press the spacebar to start."""
     def run(self):
 
         self.start_time = self.session.clock.getTime()
-        if tracker_on:
+        if self.session.background != 'staircase' and tracker_on:
             self.tracker.log('trial ' + str(self.ID) + ' started at ' + str(self.start_time) )
             self.tracker.send_command('record_status_message "Trial ' + str(self.ID) + '"')
         self.events.append('trial ' + str(self.ID) + ' started at ' + str(self.start_time))
@@ -701,7 +701,8 @@ class DetectSession(EyelinkSession):
     def __init__(self, subject_initials, task, nr_trials, block_length, background, tracker_on=False, use_parallel=False, miniblock=0):
         super(DetectSession, self).__init__(subject_initials,background)
         config_file = os.path.join(os.path.abspath(os.getcwd()), 'default_settings.json')
-        self.create_screen(size=[1920, 1080],full_screen = fullscr, background_color = (0,0,0), physical_screen_distance = 80, engine = 'psychopy') #,  ,
+        if self.screen is not None: 
+            self.create_screen(size=[1920, 1080],full_screen = fullscr, background_color = (0,0,0), physical_screen_distance = 80, engine = 'pygaze') #,  ,
         # screen = monitors.Monitor('testMonitor')
         # screen.setSizePix([1920,1080])
         # screen.setWidth(52.1)
@@ -716,8 +717,9 @@ class DetectSession(EyelinkSession):
         self.background = background
         self.task = task 
         self.subject_initials = initials
+        #shell()
 
-        if tracker_on:
+        if self.background != 'staircase' and tracker_on:
             pygaze.settings.EVENTDETECTION = 'native'
             self.create_tracker(sensitivity_class = 1, sample_rate=500) #
             print(self.tracker.connected())
@@ -822,57 +824,60 @@ class DetectSession(EyelinkSession):
         self.corrects = []
         self.confidence = []
         self.clock = clock
+
         
-        if tracker_on:
+        
+        if self.background != 'staircase' and tracker_on:
             self.tracker.status_msg('run started at ' + str(clock.getTime()) + ' trigger ' + str(self.p_run_start) )
         
         self.start_time = clock.getTime()
                 
         # Display black - white - black screens to determine pupil size limits
         self.center = (self.screen.size[0]/2.0, self.screen.size[1]/2.0)
-        self.fixation = GratingStim(self.screen, mask = 'circle',size=4, pos=[0,0], sf=0, color =(0,0,0))
+        self.fixation = GratingStim(self.screen, mask = 'circle',size=10, pos=[0,0], sf=0, color =(0,0,0))
         self.baseline_instruct = TextStim(self.screen, text = 'please keep your focus on the dot in the middle', pos = (0,50), color = (-1,-1,-1), height=20)
 
-        if self.miniblock==0:
-            
-            t0 = clock.getTime()
-            if tracker_on:
-                while clock.getTime() - t0 < 3:
-                    self.baseline_instruct.draw()
-                    self.screen.flip()
-            
-            t1 = clock.getTime()
-            if tracker_on:
-                self.tracker.status_msg('pupil baseline 1 started ' + str(clock.getTime())  )
-                while clock.getTime() - t1 < 15:
-                    self.screen.color=(-1,-1,-1)
-                    self.fixation.draw()
-                    self.screen.flip()
-            if tracker_on:
-                self.tracker.status_msg('pupil baseline 1 ended ' + str(clock.getTime())  )     
-
-            t2 = clock.getTime()
-            if tracker_on:
-                self.tracker.status_msg('pupil baseline 2 started ' + str(clock.getTime())  )               
-                while clock.getTime() - t2 < 15:
-                    self.screen.color=(1,1,1)
-                    self.fixation.draw()
-                    self.screen.flip()  
-            if tracker_on:
-                self.tracker.status_msg('pupil baseline 2 ended ' + str(clock.getTime())  )
+        if self.background != 'staircase':
+            if self.miniblock==0:
                 
-            t3 = clock.getTime()
-            if tracker_on:
-                self.tracker.status_msg('pupil baseline 3 started ' + str(clock.getTime())  )
-                while clock.getTime() - t3 < 15:
-                    self.screen.color=(-1,-1,-1)
-                    self.fixation.draw()
-                    self.screen.flip()
+                t0 = clock.getTime()
                 if tracker_on:
-                    self.tracker.status_msg('pupil baseline 3 ended ' + str(clock.getTime())  )
+                    while clock.getTime() - t0 < 3:
+                        self.baseline_instruct.draw()
+                        self.screen.flip()
                 
-            self.screen.color=(0, 0, 0)
-            self.screen.flip()
+                t1 = clock.getTime()
+                if tracker_on:
+                    self.tracker.status_msg('pupil baseline 1 started ' + str(clock.getTime())  )
+                    while clock.getTime() - t1 < 15:
+                        self.screen.color=(-1,-1,-1)
+                        self.fixation.draw()
+                        self.screen.flip()
+                if tracker_on:
+                    self.tracker.status_msg('pupil baseline 1 ended ' + str(clock.getTime())  )     
+
+                t2 = clock.getTime()
+                if tracker_on:
+                    self.tracker.status_msg('pupil baseline 2 started ' + str(clock.getTime())  )               
+                    while clock.getTime() - t2 < 15:
+                        self.screen.color=(1,1,1)
+                        self.fixation.draw()
+                        self.screen.flip()  
+                if tracker_on:
+                    self.tracker.status_msg('pupil baseline 2 ended ' + str(clock.getTime())  )
+                    
+                t3 = clock.getTime()
+                if tracker_on:
+                    self.tracker.status_msg('pupil baseline 3 started ' + str(clock.getTime())  )
+                    while clock.getTime() - t3 < 15:
+                        self.screen.color=(-1,-1,-1)
+                        self.fixation.draw()
+                        self.screen.flip()
+                    if tracker_on:
+                        self.tracker.status_msg('pupil baseline 3 ended ' + str(clock.getTime())  )
+                    
+                self.screen.color=(0, 0, 0)
+                self.screen.flip()
         
         if self.background == 'staircase':  #XXX dit moet ergens anders
             self.screen.color = (0,0,0)
@@ -951,11 +956,11 @@ class DetectSession(EyelinkSession):
  
 def main(initials,block_length,nr_trials):
 
-    prestairdet = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='detect', miniblock=1)
-    prestairdet.run()
+    # prestairdet = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='detect', miniblock=1)
+    # prestairdet.run()
 
-    prestairdisc = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='discrim', miniblock=1)
-    prestairdisc.run()
+    # prestairdisc = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='discrim', miniblock=1)
+    # prestairdisc.run()
 
     condition = [['black','detect'],
                  ['black','discrim'],
