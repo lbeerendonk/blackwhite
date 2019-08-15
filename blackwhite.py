@@ -30,8 +30,8 @@ from psychopy.sound import Sound
 
 logging.console.setLevel(logging.CRITICAL)
 
-#sys.path.append('/Users/lolabeerendonk/Documents/reps/exptools')
-sys.path.append('D:\USERS\Lola\exptools')
+sys.path.append('/Users/lolabeerendonk/Documents/reps/exptools')
+#sys.path.append('D:\USERS\Lola\exptools')
 
 import exptools
 from exptools.core.trial import Trial
@@ -52,15 +52,15 @@ from pygaze import eyetracker
 p = ['FA', 'MISS']
 
 fullscr = False
-tracker_on = True
+tracker_on = False
 use_parallel = False
 
-total_trials = 40
-miniblocks = 2
+total_trials = 130
+miniblocks = 1
 NR_TRIALS = total_trials/miniblocks
-block_length = 10
+block_length = 130
 
-nr_staircase_trials = 10
+nr_staircase_trials = 100
 # trials_per_block = 85
 # conditions = 4
 # trials_per_condition = 255
@@ -136,7 +136,8 @@ class DetectTrial(Trial):
 
         if self.session.background == 'staircase':
             if self.task == 'detect':
-                part1 = """Your task is to detect the target tone embedded in noise.
+                part1 = """Your task is to DETECT the target tone embedded in noise.
+
 First, the appropriate difficulty level will be estimated. To do so, the difficulty will be increased until you make mistakes. Then the difficulty will be decreased again until you are performing well. This process will go on for a while in order to get a good estimate.
 At some point, you will probably not hear the target anymore. Just continue, the difficulty will be adjusted.\n\n"""
                 if self.version ==1:
@@ -149,7 +150,8 @@ Press the spacebar to continue."""
 Press the spacebar to continue."""
                 
             elif self.task == 'discrim':
-                part1 = """Your task is to discriminate between two target tones embedded in noise.
+                part1 = """Your task is to DISCRIMINATE between two target tones embedded in noise.
+
 First, the appropriate difficulty level will be estimated. To do so, the difficulty will be increased until you make mistakes. Then the difficulty will be decreased again until you are performing well. This process will go on for a while in order to get a good estimate.
 At some point, you will probably not hear the target anymore. Just continue, the difficulty will be adjusted.\n\n""" 
                 if self.version ==1:
@@ -161,12 +163,12 @@ Press the spacebar to continue."""
 
 Press the spacebar to continue."""  
             intro_text = part1 + part2    
-            self.message2 = visual.TextStim(self.screen, font='arial', pos=[0,0],text=part2,color=(-1,-1,-1), wrapWidth=900) 
+            self.message2 = visual.TextStim(self.screen, font='arial', pos=[0,0],text=part2,color=(-1,-1,-1), wrapWidth=1100) 
 
         elif self.session.background != 'staircase':
             if self.task == 'detect':
                 if self.version == 1:
-                    intro_text = """Your task is to detect the target tone embedded in noise.
+                    intro_text = """Your task is to DETECT the target tone embedded in noise.
 Do you hear the target tone? And how confident are you?
 Please indicate your answer using these buttons:
 
@@ -177,7 +179,7 @@ Try to answer when the stimulus is not audible anymore. If you are too fast or t
 
 Press the spacebar to start."""   
                 elif self.version == 2: 
-                    intro_text = """Your task is to detect the target tone embedded in noise.
+                    intro_text = """Your task is to DETECT the target tone embedded in noise.
 Do you hear the target tone? And how confident are you?
 Please indicate your answer using these buttons:
 
@@ -189,7 +191,7 @@ Try to answer when the stimulus is not audible anymore. If you are too fast or t
 Press the spacebar to start."""
             elif self.task == 'discrim':
                 if self.version == 1:
-                    intro_text = """Your task is to discriminate between two target tones embedded in noise.
+                    intro_text = """Your task is to DISCRIMINATE between two target tones embedded in noise.
 Do you hear the high or the low tone? And how confident are you?
 Please indicate your answer using these buttons:
 
@@ -200,7 +202,7 @@ Try to answer when the stimulus is not audible anymore. If you are too fast or t
 
 Press the spacebar to start."""
                 elif self.version == 2:
-                    intro_text = """Your task is to discriminate between two target tones embedded in noise.
+                    intro_text = """Your task is to DISCRIMINATE between two target tones embedded in noise.
 Do you hear the high or the low tone? And how confident are you?
 Please indicate your answer using these buttons:
 
@@ -231,7 +233,10 @@ Press the spacebar to start."""
 
         if self.session.background == 'staircase':
             textcolor = (-1,-1,-1)
-            self.firstscreen = visual.TextStim(self.screen, font='arial', pos=[0,0], text='Thank you for participating in this experiment.\n\nToday you will be performing auditory detection and discrimination tasks againts bright and dark backgrounds. Throughout the experiment, you will be listening to tones embedded in noise. You will now get to hear the target tone(s) and the noise.\n\nPress the spacebar to continue.',color=textcolor,wrapWidth=900)
+            if self.task == 'detect':
+                self.firstscreen = visual.TextStim(self.screen, font='arial', pos=[0,0], text='Today you will be performing auditory detection and discrimination tasks againts bright and dark backgrounds. The backgrounds are not relevant for you and you can ignore them. Throughout the experiment, you will be listening to tones embedded in noise.\n\nWhen you are instructed to perform the DETECTION task, your task is to indicate whether the target tone is present or absent. When you are instructed to perform the DISCRIMINATION task, your task is to indicate whether you hear the high or low tone.\n\nBefore we start with the real experiment, we will estimate the appropriate difficulty for you and you get to practice both tasks a bit.\n\nFirst, you will practice the DETECTION task. You will now get to hear the target tone and the noise.\n\nPress the spacebar to continue.',color=textcolor,wrapWidth=1100)
+            elif self.task == 'discrim':
+                self.firstscreen = visual.TextStim(self.screen, font='arial', pos=[0,0], text='Now, you will practice the DISCRIMINATION task. You will now get to hear the target tones and the noise.\n\nPress the spacebar to continue.',color=textcolor,wrapWidth=1100)
         else:
             textcolor = (0,0,0)
             if self.task == 'detect' and self.ID==0:
@@ -243,6 +248,7 @@ Press the spacebar to start."""
             elif self.task == 'discrim':
                 self.firstscreen = visual.TextStim(self.screen, font='arial', pos=[0,0], text='You will now get to hear the target tones again so you know what to look for.\n\nPress the spacebar to continue.',color = (0,0,0),wrapWidth=900) 
 
+        
         if self.ID > 0:
             self.feedback = visual.TextStim(self.screen, font='arial', pos=[0,0],text=feedback_text, color =textcolor,wrapWidth=900)                           
         self.message = visual.TextStim(self.screen, font='arial', pos=[0,0],text=intro_text,color=textcolor,wrapWidth=900)
@@ -256,9 +262,9 @@ Press the spacebar to start."""
         self.high_tone = visual.TextStim(self.screen, font='arial', pos=[0,+100], text='This is the high tone with noise.',color = textcolor)
         self.low_tone = visual.TextStim(self.screen, font='arial', pos=[0,+100], text='This is the low tone with noise.',color = textcolor)
  
-        self.d1 = 30 #diameter outer circle. larger option: 1.5, 0.15, 7 (0.7, 0.05, 4)
-        self.d2 = 2 #diameter inner circle
-        self.w1 = 4 #linewidth
+        self.d1 = 40 #diameter outer circle. larger option: 1.5, 0.15, 7 (0.7, 0.05, 4)
+        self.d2 = 4 #diameter inner circle
+        self.w1 = 6 #linewidth
         self.backgroundColor = (0,0,0) #Set according to the backgroundcolor of the experiment
         
         if self.session.background != 'staircase':
@@ -370,7 +376,7 @@ Press the spacebar to start."""
 
         self.message.draw()
         self.screen.flip()
-    #Not so neat, but otherwise it gets stuck.
+        #Not so neat, but otherwise it gets stuck.
         for ev in event.waitKeys(keyList='spacebar'):
             if ev:
                 self.phase_forward()
@@ -701,7 +707,8 @@ class DetectSession(EyelinkSession):
     def __init__(self, subject_initials, task, nr_trials, block_length, background, tracker_on=False, use_parallel=False, miniblock=0):
         super(DetectSession, self).__init__(subject_initials,background)
         config_file = os.path.join(os.path.abspath(os.getcwd()), 'default_settings.json')
-        if self.screen is not None: 
+        if self.screen is None:
+            print('Creating new screen.')
             self.create_screen(size=[1920, 1080],full_screen = fullscr, background_color = (0,0,0), physical_screen_distance = 80, engine = 'pygaze') #,  ,
         # screen = monitors.Monitor('testMonitor')
         # screen.setSizePix([1920,1080])
@@ -825,8 +832,6 @@ class DetectSession(EyelinkSession):
         self.confidence = []
         self.clock = clock
 
-        
-        
         if self.background != 'staircase' and tracker_on:
             self.tracker.status_msg('run started at ' + str(clock.getTime()) + ' trigger ' + str(self.p_run_start) )
         
@@ -879,7 +884,13 @@ class DetectSession(EyelinkSession):
                 self.screen.color=(0, 0, 0)
                 self.screen.flip()
         
-        if self.background == 'staircase':  #XXX dit moet ergens anders
+        if self.miniblock == 0 and self.background != 'staircase':
+            self.general_intro = visual.TextStim(self.screen, font='arial', pos=[0,0], text='This is the start of the actual experiment.\n\nYou will be doing 8 blocks of 130 trials each. One block will take approximately 6 minutes. The task (detection or discrimination) will change randomly over blocks, you will get appropriate instructions before the start of each block.\n\nBefore each block, we will calibrate the eyetracker. During each block, please try to keep your head still, keep fixating on the dot, and try not to blink too much.\n\nThroughout the task, the volume of the target tone(s) will be constantly adjusted to keep your performance constant. Therefore we cannot give you any feedback on your performance.\n\nAfter the end of each block, you can take a break.\n\nPress the spacebar to continue.',color=(-1,-1,-1),wrapWidth=900)
+            self.general_intro.draw()
+            self.screen.flip()
+            event.waitKeys('spacebar')
+            
+        if self.background == 'staircase': 
             self.screen.color = (0,0,0)
         else:
             self.screen.color = self.background
@@ -936,7 +947,7 @@ class DetectSession(EyelinkSession):
                 self.screen.flip()
                 event.waitKeys('spacebar')
         else: 
-            self.goodbye = visual.TextStim(self.screen, pos=[0,0], text='This is the end of the staircase procedure.',color=(-1,-1,-1),wrapWidth=900,font='arial')
+            self.goodbye = visual.TextStim(self.screen, pos=[0,0], text='This is the end of this staircase block.',color=(-1,-1,-1),wrapWidth=900,font='arial')
 
         self.goodbye.draw()
         self.screen.flip()
@@ -946,43 +957,60 @@ class DetectSession(EyelinkSession):
         print('elapsed time: %.2fs' %(self.stop_time-self.start_time))      
 
         self.breakscreen = visual.TextStim(self.screen, pos=[0,0], text='You can now take a break and take your head of the chinrest.\n\nPress the spacebar when you are finished taking a break.',font='arial',color=(-1,-1,-1),wrapWidth=900)
+        self.breakscreen_background = visual.Rect(self.screen, units='pix', width=1920, height=1080, lineColor=None, fillColor=(0,0,0), fillColorSpace='rgb')
 
-        self.screen.color = (0,0,0)
-        self.screen.flip()
+        self.breakscreen_background.draw()
         self.breakscreen.draw()
+        #self.screen.color = (0,0,0)
         self.screen.flip()
+        #shell()
         event.waitKeys('spacebar')
         self.screen.clearBuffer
  
 def main(initials,block_length,nr_trials):
 
-    # prestairdet = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='detect', miniblock=1)
-    # prestairdet.run()
+    prestairdet = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='detect', miniblock=1)
+    prestairdet.run()
 
-    # prestairdisc = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='discrim', miniblock=1)
-    # prestairdisc.run()
+    if prestairdet.stopped:
+        prestairdet.close()
+        prestairdet.screen.close()
 
-    condition = [['black','detect'],
-                 ['black','discrim'],
-                 ['white','detect'],
-                 ['white','discrim']]
-    np.random.shuffle(condition)
+    if not prestairdet.stopped:
+        prestairdisc = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='discrim', miniblock=1)
+        prestairdisc.run()
 
-    for i in range(4):
-        task = condition[i][1]
-        print(task)
-        background=condition[i][0]
-        print(background)
-        miniblock=i
-        print(miniblock)
+        if prestairdisc.stopped:
+            prestairdisc.close()
+            prestairdisc.screen.close()
 
-        ts = DetectSession(subject_initials=initials, nr_trials=NR_TRIALS, block_length = block_length,  background=background, tracker_on=tracker_on, use_parallel=use_parallel, task=task, miniblock=miniblock)
-        ts.run()
+        if not prestairdisc.stopped:
+            condition = [['black','detect'],
+                         ['black','discrim'],
+                         ['white','detect'],
+                         ['white','discrim'],
+                         ['black','detect'],
+                         ['black','discrim'],
+                         ['white','detect'],
+                         ['white','discrim']]
+            
+            np.random.shuffle(condition)
 
-        if ts.stopped:
-            ts.close()
-            ts.screen.close()
-            break
+            for i in range(len(condition)):
+                task = condition[i][1]
+                print(task)
+                background=condition[i][0]
+                print(background)
+                miniblock=i
+                print(miniblock)
+
+                ts = DetectSession(subject_initials=initials, nr_trials=NR_TRIALS, block_length = block_length,  background=background, tracker_on=tracker_on, use_parallel=use_parallel, task=task, miniblock=miniblock)
+                ts.run()
+
+                if ts.stopped:
+                    ts.close()
+                    ts.screen.close()
+                    break
 
     if not os.path.exists('data/' + task + '/' + initials + '/'):
         os.makedirs('data/' + task +'/' + initials + '/')
