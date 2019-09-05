@@ -27,6 +27,7 @@ import shutil
 from psychopy import logging, visual, clock, sound, event, data, core, monitors
 from psychopy import parallel
 from psychopy.sound import Sound
+import matplotlib.pyplot as plt
 
 logging.console.setLevel(logging.CRITICAL)
 
@@ -55,18 +56,12 @@ fullscr = False
 tracker_on = False
 use_parallel = False
 
-total_trials = 130
+total_trials = 2
 miniblocks = 1
 NR_TRIALS = total_trials/miniblocks
-block_length = 130
+block_length = 2
 
-nr_staircase_trials = 100
-# trials_per_block = 85
-# conditions = 4
-# trials_per_condition = 255
-# total_number_trials = float(trials_per_block * conditions * trials_per_condition / trials_per_block)
-# if total_number_trials % 1 != 0:
-#     raise ValueError('The requested amount of trials does not add up to a round number.')
+nr_staircase_trials = 50
 
 stim_size = 17
 noise_size = 19
@@ -172,7 +167,7 @@ Press the spacebar to continue."""
 Do you hear the target tone? And how confident are you?
 Please indicate your answer using these buttons:
 
-        A                      S                            K                          L
+ LEFT-green         LEFT-red          RIGHT-red         RIGHT-green
 no and sure     no and unsure      yes and unsure     yes and sure
 
 Try to answer when the stimulus is not audible anymore. If you are too fast or too slow (1.5 seconds) the fixation dot will turn red.
@@ -183,7 +178,7 @@ Press the spacebar to start."""
 Do you hear the target tone? And how confident are you?
 Please indicate your answer using these buttons:
 
-        A                        S                            K                        L
+ LEFT-green         LEFT-red          RIGHT-red         RIGHT-green
 yes and sure     yes and unsure      no and unsure     no and sure
 
 Try to answer when the stimulus is not audible anymore. If you are too fast or too slow (1.5 seconds) the fixation dot will turn red.
@@ -195,7 +190,7 @@ Press the spacebar to start."""
 Do you hear the high or the low tone? And how confident are you?
 Please indicate your answer using these buttons:
 
-        A                        S                              K                            L
+ LEFT-green         LEFT-red           RIGHT-red          RIGHT-green
 low and sure     low and unsure      high and unsure     high and sure
 
 Try to answer when the stimulus is not audible anymore. If you are too fast or too slow (1.5 seconds) the fixation dot will turn red.
@@ -206,7 +201,7 @@ Press the spacebar to start."""
 Do you hear the high or the low tone? And how confident are you?
 Please indicate your answer using these buttons:
 
-         A                         S                             K                           L
+ LEFT-green         LEFT-red             RIGHT-red         RIGHT-green
 high and sure     high and unsure      low and unsure     low and sure
 
 Try to answer when the stimulus is not audible anymore. If you are too fast or too slow (1.5 seconds) the fixation dot will turn red.
@@ -627,6 +622,9 @@ class Kaernbach1991:
         self.trialn = 0
         self.cap = cap
 
+        self.task = task
+        self.subject_initials = initials
+
     def trial(self, corr):
         """
         Advance the staircase by one trial. Takes a Boolean which indicates
@@ -673,6 +671,7 @@ class Kaernbach1991:
             self.prevcorr = corr
             self.trialn += 1
             self.dvs.append(self.dv)
+
     
     def getthreshold(self):
         """
@@ -682,22 +681,24 @@ class Kaernbach1991:
         """
         self.threshold = np.mean(self.dvs4avg)
         print('Approximate threshold: ', self.threshold)
+        self.fileName = os.path.join('data/' + self.task + '/' + str(self.subject_initials) + '_' + self.task + '_staircase')
         file = open(self.fileName+'.txt','w')
         file.write(str(self.threshold))
         file.close()
+        self.makefig()
 
     def makefig(self):
         """
         View or save the staircase.
         
         """
-        self.fig_fileName = os.path.join('data/' + self.task + '_staircase/participant_' + str(self.subject_initials) + '/' + str(self.subject_initials) +'_' + self.task + '_staircase')  
+        self.fig_fileName = os.path.join('data/' + self.task + '/' + str(self.subject_initials) + '_' + self.task + '_staircase')  
         x = np.arange(self.trialn) + 1   
         y = self.dvs
         plt.plot(x, y)
         plt.xlim(min(x), max(x))
         plt.ylim(min(y), max(y))
-        plt.ylabel('Dependent variable')
+        plt.ylabel('Volume')
         plt.xlabel('Trial')
         plt.hlines(np.mean(self.dvs4avg), min(x), max(x), 'r')
         plt.savefig(self.fig_fileName + '.png')    
@@ -732,8 +733,7 @@ class DetectSession(EyelinkSession):
             print(self.tracker.connected())
             self.tracker_setup(sensitivity_class = 1, sample_rate=500)
 
-        #Took out self.create_output_filename() because I don't like the filenames with the date and time in it.
-        datadir = 'data/' + self.task + '/' + str(self.subject_initials) + '/'
+        datadir = 'data/' + self.task + '/'
         
         if not os.path.exists(datadir):
             os.makedirs(datadir)     
@@ -776,7 +776,7 @@ class DetectSession(EyelinkSession):
             stepsizes = (.05,.005)
         else:
             try: 
-                dv0 = np.array([np.loadtxt(os.getcwd() + '/data/' + self.task + '_staircase/participant_' + initials + '/' + initials + '_' + self.task + '_threshold.txt')]) 
+                dv0 = np.array([np.loadtxt(os.getcwd() + '/data/' + self.task + '/' + initials + '_' + self.task + '_staircase.txt')]) 
             except:
                 raise NameError('no staircase data for participant')  
             print(dv0)
@@ -832,6 +832,12 @@ class DetectSession(EyelinkSession):
         self.confidence = []
         self.clock = clock
 
+        if self.miniblock == 0 and self.background != 'staircase':
+            self.general_intro = visual.TextStim(self.screen, font='arial', pos=[0,0], text='This is the start of the actual experiment.\n\nYou will be doing 8 blocks of 130 trials each. One block will take approximately 6 minutes. The task (detection or discrimination) will change randomly over blocks, you will get appropriate instructions before the start of each block.\n\nBefore each block, we will calibrate the eyetracker. During each block, please try to keep your head still, keep fixating on the dot, and try not to blink too much.\n\nThroughout the task, the volume of the target tone(s) will be constantly adjusted to keep your performance constant. Therefore we cannot give you any feedback on your performance.\n\nAfter the end of each block, you can take a break.\n\nPress the spacebar to continue.',color=(-1,-1,-1),wrapWidth=900)
+            self.general_intro.draw()
+            self.screen.flip()
+            event.waitKeys('spacebar')
+
         if self.background != 'staircase' and tracker_on:
             self.tracker.status_msg('run started at ' + str(clock.getTime()) + ' trigger ' + str(self.p_run_start) )
         
@@ -840,7 +846,7 @@ class DetectSession(EyelinkSession):
         # Display black - white - black screens to determine pupil size limits
         self.center = (self.screen.size[0]/2.0, self.screen.size[1]/2.0)
         self.fixation = GratingStim(self.screen, mask = 'circle',size=10, pos=[0,0], sf=0, color =(0,0,0))
-        self.baseline_instruct = TextStim(self.screen, text = 'please keep your focus on the dot in the middle', pos = (0,50), color = (-1,-1,-1), height=20)
+        self.baseline_instruct = TextStim(self.screen, text = 'Because this is the very first block, we are going to look at the dynamic range of your pupil. You will view black, white and black screens for 15 seconds each. Please keep your focus on the dot in the middle.', pos = (0,50), color = (-1,-1,-1), height=20)
 
         if self.background != 'staircase':
             if self.miniblock==0:
@@ -883,12 +889,6 @@ class DetectSession(EyelinkSession):
                     
                 self.screen.color=(0, 0, 0)
                 self.screen.flip()
-        
-        if self.miniblock == 0 and self.background != 'staircase':
-            self.general_intro = visual.TextStim(self.screen, font='arial', pos=[0,0], text='This is the start of the actual experiment.\n\nYou will be doing 8 blocks of 130 trials each. One block will take approximately 6 minutes. The task (detection or discrimination) will change randomly over blocks, you will get appropriate instructions before the start of each block.\n\nBefore each block, we will calibrate the eyetracker. During each block, please try to keep your head still, keep fixating on the dot, and try not to blink too much.\n\nThroughout the task, the volume of the target tone(s) will be constantly adjusted to keep your performance constant. Therefore we cannot give you any feedback on your performance.\n\nAfter the end of each block, you can take a break.\n\nPress the spacebar to continue.',color=(-1,-1,-1),wrapWidth=900)
-            self.general_intro.draw()
-            self.screen.flip()
-            event.waitKeys('spacebar')
             
         if self.background == 'staircase': 
             self.screen.color = (0,0,0)
@@ -947,6 +947,7 @@ class DetectSession(EyelinkSession):
                 self.screen.flip()
                 event.waitKeys('spacebar')
         else: 
+            self.kb.getthreshold()
             self.goodbye = visual.TextStim(self.screen, pos=[0,0], text='This is the end of this staircase block.',color=(-1,-1,-1),wrapWidth=900,font='arial')
 
         self.goodbye.draw()
@@ -954,7 +955,7 @@ class DetectSession(EyelinkSession):
         core.wait(2)
         if self.tracker_on:
             self.tracker.status_msg('run ended at ' + str(clock.getTime()) + ' trigger ' + str(self.p_run_end) )
-        print('elapsed time: %.2fs' %(self.stop_time-self.start_time))      
+        print('elapsed time: %.2fs' %(self.stop_time-self.start_time))     
 
         self.breakscreen = visual.TextStim(self.screen, pos=[0,0], text='You can now take a break and take your head of the chinrest.\n\nPress the spacebar when you are finished taking a break.',font='arial',color=(-1,-1,-1),wrapWidth=900)
         self.breakscreen_background = visual.Rect(self.screen, units='pix', width=1920, height=1080, lineColor=None, fillColor=(0,0,0), fillColorSpace='rgb')
@@ -965,11 +966,12 @@ class DetectSession(EyelinkSession):
         self.screen.flip()
         #shell()
         event.waitKeys('spacebar')
+
         self.screen.clearBuffer
  
 def main(initials,block_length,nr_trials):
 
-    prestairdet = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='detect', miniblock=1)
+    prestairdet = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length=nr_staircase_trials,  background='staircase', tracker_on=False, use_parallel=False, task='detect', miniblock=1)
     prestairdet.run()
 
     if prestairdet.stopped:
@@ -977,7 +979,7 @@ def main(initials,block_length,nr_trials):
         prestairdet.screen.close()
 
     if not prestairdet.stopped:
-        prestairdisc = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length =40,  background='staircase', tracker_on=False, use_parallel=False, task='discrim', miniblock=1)
+        prestairdisc = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length=nr_staircase_trials,  background='staircase', tracker_on=False, use_parallel=False, task='discrim', miniblock=1)
         prestairdisc.run()
 
         if prestairdisc.stopped:
@@ -998,11 +1000,11 @@ def main(initials,block_length,nr_trials):
 
             for i in range(len(condition)):
                 task = condition[i][1]
-                print(task)
+                #print(task)
                 background=condition[i][0]
-                print(background)
+                #print(background)
                 miniblock=i
-                print(miniblock)
+                #print(miniblock)
 
                 ts = DetectSession(subject_initials=initials, nr_trials=NR_TRIALS, block_length = block_length,  background=background, tracker_on=tracker_on, use_parallel=use_parallel, task=task, miniblock=miniblock)
                 ts.run()
@@ -1011,9 +1013,6 @@ def main(initials,block_length,nr_trials):
                     ts.close()
                     ts.screen.close()
                     break
-
-    if not os.path.exists('data/' + task + '/' + initials + '/'):
-        os.makedirs('data/' + task +'/' + initials + '/')
 
 if __name__ == '__main__':
     # Store info about the experiment session
