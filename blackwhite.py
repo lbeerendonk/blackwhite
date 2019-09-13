@@ -28,6 +28,7 @@ from psychopy import logging, visual, clock, sound, event, data, core, monitors
 from psychopy import parallel
 from psychopy.sound import Sound
 import matplotlib.pyplot as plt
+import pickle
 
 logging.console.setLevel(logging.CRITICAL)
 
@@ -404,6 +405,7 @@ Press the spacebar to start."""
             self.target1.setVolume(float(self.session.kb.dv))
             self.target2.setVolume(float(self.session.kb.dv)) 
             self.parameters['signal_volume']=float(self.session.kb.dv)
+            print('volume: ', self.session.kb.dv)
             self.draw_fixation()
             if not self.noise_played:
                 self.noise.play(loops=None)
@@ -681,7 +683,7 @@ class Kaernbach1991:
         """
         self.threshold = np.mean(self.dvs4avg)
         print('Approximate threshold: ', self.threshold)
-        self.fileName = os.path.join('data/' + self.task + '/' + str(self.subject_initials) + '_' + self.task + '_staircase')
+        self.fileName = os.path.join('data/' + str(self.subject_initials) + '_' + self.task + '_staircase')
         file = open(self.fileName+'.txt','w')
         file.write(str(self.threshold))
         file.close()
@@ -711,20 +713,13 @@ class DetectSession(EyelinkSession):
         if self.screen is None:
             print('Creating new screen.')
             self.create_screen(size=[1920, 1080],full_screen = fullscr, background_color = (0,0,0), physical_screen_distance = 80, engine = 'pygaze') #,  ,
-        # screen = monitors.Monitor('testMonitor')
-        # screen.setSizePix([1920,1080])
-        # screen.setWidth(52.1)
-        # screen.setDistance(80)
-
-        # self.my_monitor = monitors.Monitor(name='mymon')
-        # self.my_monitor.setSizePix((1920, 1080))
-        # self.my_monitor.setWidth(20)
 
         self.block_length = block_length
         self.nr_trials = nr_trials
         self.background = background
         self.task = task 
         self.subject_initials = initials
+        self.miniblock=miniblock
         #shell()
 
         if self.background != 'staircase' and tracker_on:
@@ -738,18 +733,15 @@ class DetectSession(EyelinkSession):
         if not os.path.exists(datadir):
             os.makedirs(datadir)     
 
-        #if a file already exists, add a number to the file until it doesn't exist. 
-        if not os.path.isfile(datadir + str(self.subject_initials) + '_' + str(self.task) + '_' + str(self.background) + '_outputDict.pkl'):
-            self.output_file = os.path.join(datadir + str(self.subject_initials) + '_' + self.task + '_' + str(self.background))  
+        if not os.path.isfile(datadir + str(self.subject_initials) + self.task[0:2] + str(self.background)[0] + str(miniblock) + '_outputDict.pkl'):
+            self.output_file = os.path.join(datadir + str(self.subject_initials) + self.task[0:2] + str(self.background)[0] + str(miniblock))  
         else:
             i=1
             while True:
-                if not os.path.isfile(datadir + str(self.subject_initials) + '_' + self.task + '_' + str(self.background) + '_' + str(i) + '_outputDict.pkl'):
-                    self.output_file = os.path.join(datadir + str(self.subject_initials) + '_' + self.task + '_' + str(self.background) + '_' + str(i))
+                if not os.path.isfile(datadir + str(self.subject_initials) + self.task[0:2] + str(self.background)[0] + str(miniblock) + str(i) + '_outputDict.pkl'):
+                    self.output_file = os.path.join(datadir + str(self.subject_initials) + self.task[0:2] + str(self.background)[0] + str(miniblock) + str(i))
                     break
                 i += 1  
-
-        self.miniblock=miniblock
 
         self.use_parallel = use_parallel
         self.p_width = 5/float(1000)
@@ -776,7 +768,8 @@ class DetectSession(EyelinkSession):
             stepsizes = (.05,.005)
         else:
             try: 
-                dv0 = np.array([np.loadtxt(os.getcwd() + '/data/' + self.task + '/' + initials + '_' + self.task + '_staircase.txt')]) 
+                dv0 = np.array([np.loadtxt(os.path.join(datadir + self.subject_initials + '_' + self.task + '_staircase.txt'))])
+                print(dv0)
             except:
                 raise NameError('no staircase data for participant')  
             print(dv0)
@@ -969,52 +962,75 @@ class DetectSession(EyelinkSession):
 
         self.screen.clearBuffer
  
-def main(initials,block_length,nr_trials):
+def main(initials,block_length,nr_trials,startfrom):
+    
+    fname = os.path.join(os.path.abspath(os.getcwd()),'data', str(initials) + '_conditions_order.data')
+    
+    if startfrom == 'S1':
+        condition = [['black','detect'],
+             ['black','discrim'],
+             ['white','detect'],
+             ['white','discrim'],
+             ['black','detect'],
+             ['black','discrim'],
+             ['white','detect'],
+             ['white','discrim']]
+            
+        np.random.shuffle(condition)
+        
+        with open(fname,'wb') as filehandle:
+            pickle.dump(condition,filehandle)
 
-    prestairdet = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length=nr_staircase_trials,  background='staircase', tracker_on=False, use_parallel=False, task='detect', miniblock=1)
-    prestairdet.run()
+        #Condition opslaan ergens
 
-    if prestairdet.stopped:
-        prestairdet.close()
-        prestairdet.screen.close()
+        prestairdet = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length=nr_staircase_trials,  background='staircase', tracker_on=False, use_parallel=False, task='detect', miniblock=1)
+        prestairdet.run()
 
-    if not prestairdet.stopped:
+        if prestairdet.stopped:
+            prestairdet.close()
+            prestairdet.screen.close()
+
+        startfrom = 'S2'
+
+    if startfrom == 'S2':
         prestairdisc = DetectSession(subject_initials=initials, nr_trials=nr_staircase_trials, block_length=nr_staircase_trials,  background='staircase', tracker_on=False, use_parallel=False, task='discrim', miniblock=1)
         prestairdisc.run()
 
         if prestairdisc.stopped:
             prestairdisc.close()
             prestairdisc.screen.close()
-
-        if not prestairdisc.stopped:
-            condition = [['black','detect'],
-                         ['black','discrim'],
-                         ['white','detect'],
-                         ['white','discrim'],
-                         ['black','detect'],
-                         ['black','discrim'],
-                         ['white','detect'],
-                         ['white','discrim']]
+        startfrom = 'B1'
+                
+    if startfrom[0] == 'B':
+        startfrom = int(startfrom[1])-1 #because python starts with 0.
+        
+        with open(fname,'rb') as filehandle:
+            cond = pickle.load(filehandle)
             
-            np.random.shuffle(condition)
+            condition = cond[startfrom:]
+        
+        for i in range(len(condition)):
+            task = condition[i][1]
+            #print(task)
+            background=condition[i][0]
+            #print(background)
+            miniblock=startfrom
+            print('Block: ', miniblock+1)
 
-            for i in range(len(condition)):
-                task = condition[i][1]
-                #print(task)
-                background=condition[i][0]
-                #print(background)
-                miniblock=i
-                #print(miniblock)
+            ts = DetectSession(subject_initials=initials, nr_trials=NR_TRIALS, block_length = block_length,  background=background, tracker_on=tracker_on, use_parallel=use_parallel, task=task, miniblock=miniblock)
+            ts.run()
+            
+            startfrom += 1
+            if startfrom == 8:
+                ts.stopped = True
 
-                ts = DetectSession(subject_initials=initials, nr_trials=NR_TRIALS, block_length = block_length,  background=background, tracker_on=tracker_on, use_parallel=use_parallel, task=task, miniblock=miniblock)
-                ts.run()
-
-                if ts.stopped:
-                    ts.close()
-                    ts.screen.close()
-                    break
+            if ts.stopped:
+                ts.close()
+                ts.screen.close()
+                break
 
 if __name__ == '__main__':
     # Store info about the experiment session
     initials = raw_input('Participant: ')
-    main(initials=initials, block_length = block_length, nr_trials=NR_TRIALS)
+    startfrom = raw_input('Start from (S1, S2 or B1 - B8): ')
+    main(initials=initials, block_length = block_length, nr_trials=NR_TRIALS,startfrom=startfrom)
